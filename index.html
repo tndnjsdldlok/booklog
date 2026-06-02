@@ -58,6 +58,12 @@
     font-family: 'DM Mono', monospace; font-size: 11px; color: var(--ink-light);
     background: var(--bg); padding: 4px 12px; border-radius: 20px; border: 1px solid var(--line);
   }
+  .btn-backup {
+    background: var(--bg); color: var(--ink-light); border: 1px solid var(--line);
+    width: 36px; height: 36px; border-radius: 6px; font-size: 16px;
+    cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: center;
+  }
+  .btn-backup:hover { background: var(--line); }
   .btn-add {
     background: var(--accent); color: #faf7f2; border: none; padding: 10px 20px;
     border-radius: 6px; font-family: 'Noto Serif KR', serif; font-size: 14px;
@@ -235,9 +241,20 @@
   <div class="logo">북<span>로그</span></div>
   <div class="header-right">
     <div class="stats-pill" id="headerStats">0권</div>
+    <button class="btn-backup" onclick="toggleBackupMenu()" title="백업/복원">💾</button>
     <button class="btn-add" onclick="openAddModal()">+ 책 추가</button>
   </div>
 </header>
+<!-- 백업 메뉴 -->
+<div id="backupMenu" style="display:none;position:fixed;top:70px;right:16px;z-index:300;background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:12px;box-shadow:0 8px 24px rgba(44,36,22,0.15);min-width:180px">
+  <div style="font-family:'Gowun Batang',serif;font-size:14px;color:var(--ink);margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid var(--line)">💾 데이터 관리</div>
+  <button onclick="exportData()" style="width:100%;padding:10px;background:rgba(74,124,89,0.1);color:var(--reading);border:1px solid rgba(74,124,89,0.2);border-radius:8px;font-family:'Noto Serif KR',serif;font-size:13px;cursor:pointer;margin-bottom:8px;text-align:left">📤 백업 파일 저장</button>
+  <label style="width:100%;display:block;padding:10px;background:rgba(74,93,124,0.1);color:var(--want);border:1px solid rgba(74,93,124,0.2);border-radius:8px;font-family:'Noto Serif KR',serif;font-size:13px;cursor:pointer;text-align:left">
+    📥 백업 파일 불러오기
+    <input type="file" id="importFile" accept=".json" style="display:none" onchange="importData(event)">
+  </label>
+  <div style="font-size:10px;color:var(--ink-light);margin-top:8px;text-align:center">마지막 백업: <span id="lastBackupDate">없음</span></div>
+</div>
 
 <div class="year-tabs" id="yearTabs"></div>
 
@@ -732,6 +749,61 @@
     if (!confirm('이 책을 삭제할까요?')) return;
     books = books.filter(b => b.id !== viewingId);
     save(); closeDetailModal(); render();
+  }
+
+  function toggleBackupMenu() {
+    const menu = document.getElementById('backupMenu');
+    menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
+    // 마지막 백업 날짜 표시
+    const last = localStorage.getItem('booklog_last_backup');
+    document.getElementById('lastBackupDate').textContent = last || '없음';
+  }
+
+  // 바깥 클릭시 메뉴 닫기
+  document.addEventListener('click', e => {
+    const menu = document.getElementById('backupMenu');
+    const btn = document.querySelector('.btn-backup');
+    if (!menu.contains(e.target) && e.target !== btn) {
+      menu.style.display = 'none';
+    }
+  });
+
+  function exportData() {
+    const data = { books, exportedAt: new Date().toISOString(), version: 1 };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const date = new Date().toISOString().slice(0,10);
+    a.href = url; a.download = `북로그_백업_${date}.json`;
+    a.click(); URL.revokeObjectURL(url);
+    localStorage.setItem('booklog_last_backup', date);
+    document.getElementById('lastBackupDate').textContent = date;
+    alert('백업 파일이 저장됐어요! 📁');
+  }
+
+  function importData(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      try {
+        const data = JSON.parse(ev.target.result);
+        if (!data.books || !Array.isArray(data.books)) throw new Error('잘못된 파일');
+        if (!confirm(`백업 파일에 책 ${data.books.length}권이 있어요. 불러올까요?
+(기존 데이터와 합쳐져요)`)) return;
+        // 기존 데이터와 합치기 (id 중복 제거)
+        const existingIds = new Set(books.map(b => b.id));
+        const newBooks = data.books.filter(b => !existingIds.has(b.id));
+        books = [...books, ...newBooks];
+        save(); render();
+        document.getElementById('backupMenu').style.display = 'none';
+        alert(`${newBooks.length}권이 추가됐어요! 📚`);
+      } catch(err) {
+        alert('파일을 읽을 수 없어요. 올바른 백업 파일인지 확인해주세요.');
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
   }
 
   if (books.length === 0) {
