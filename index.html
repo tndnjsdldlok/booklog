@@ -744,7 +744,6 @@
   const TMDB_KEY = 'eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiIyN2E5NWJhYmFhMTk0OWY3MTc4YTkyOTNiN2IzOTEyMiIsIm5iZiI6MTc4MDQ5MDg5NC4wOSwic3ViIjoiNmEyMDIyOGUxOThhYjZkNTRlZjNjNGQ3Iiwic2NvcGVzIjpbImFwaV9yZWFkIl0sInZlcnNpb24iOjF9.vkck_LMkgtYbg60GmLQRKgNhO_e5kBrRpxSgyHdBta0';
 
   async function searchMovie() {
-    alert('검색 함수 실행됨');
     const q = document.getElementById('mSearchInput').value.trim();
     if (!q) return;
     const resultsEl = document.getElementById('mSearchResults');
@@ -759,7 +758,6 @@
         return;
       }
       const data = await res.json();
-      alert(JSON.stringify(data));
       if (!data.results || data.results.length === 0) {
         resultsEl.innerHTML = `<div style="padding:12px;text-align:center;color:var(--ink-light);font-size:13px">검색 결과가 없어요 (status:${res.status})</div>`;
         return;
