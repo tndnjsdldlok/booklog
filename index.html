@@ -758,6 +758,7 @@
         return;
       }
       const data = await res.json();
+      alert(JSON.stringify(data));
       if (!data.results || data.results.length === 0) {
         resultsEl.innerHTML = `<div style="padding:12px;text-align:center;color:var(--ink-light);font-size:13px">검색 결과가 없어요 (status:${res.status})</div>`;
         return;
