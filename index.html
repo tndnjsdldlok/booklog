@@ -753,9 +753,13 @@
       const res = await fetch(`https://api.themoviedb.org/3/search/movie?query=${encodeURIComponent(q)}&language=ko-KR&page=1`, {
         headers: { Authorization: `Bearer ${TMDB_KEY}` }
       });
+      if (!res.ok) {
+        resultsEl.innerHTML = `<div style="padding:12px;text-align:center;color:#c04040;font-size:13px">HTTP오류: ${res.status} ${res.statusText}</div>`;
+        return;
+      }
       const data = await res.json();
       if (!data.results || data.results.length === 0) {
-        resultsEl.innerHTML = '<div style="padding:12px;text-align:center;color:var(--ink-light);font-size:13px">검색 결과가 없어요</div>';
+        resultsEl.innerHTML = `<div style="padding:12px;text-align:center;color:var(--ink-light);font-size:13px">검색 결과가 없어요 (status:${res.status})</div>`;
         return;
       }
       window._movieResults = data.results.slice(0, 5);
@@ -771,7 +775,7 @@
         </div>`;
       }).join('');
     } catch(e) {
-      resultsEl.innerHTML = '<div style="padding:12px;text-align:center;color:#c04040;font-size:13px">검색 실패. API 키를 확인해주세요</div>';
+      resultsEl.innerHTML = `<div style="padding:12px;text-align:center;color:#c04040;font-size:13px">검색 실패: ${e.message}</div>`;
     }
   }
 
