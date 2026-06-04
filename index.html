@@ -800,6 +800,8 @@
     document.getElementById('mInputStatus').value = m.status;
     document.getElementById('mInputGenre').value = m.genre || '';
     document.getElementById('mInputMemo').value = m.memo || '';
+    document.getElementById('mInputWatchDate').value = m.watchDate || '';
+    document.getElementById('watchDateGroup').style.display = m.status === 'done' ? 'block' : 'none';
     document.querySelectorAll('.movie-star-btn').forEach((b,i) => b.classList.toggle('active', i < movieRating));
     if (m.coverUrl) { setMovieCover(m.coverUrl); } else { currentMovieCoverUrl = null; document.getElementById('mCoverPreview').innerHTML = '🎬'; }
     document.getElementById('mSearchInput').value = '';
