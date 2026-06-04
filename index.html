@@ -317,6 +317,7 @@
 
 <!-- 영화 섹션 -->
 <div id="movieSection" style="display:none">
+  <div class="year-tabs" id="movieYearTabs" style="background:var(--ink)"></div>
   <div class="filters">
     <button class="filter-tab active" data-filter="all" onclick="setMovieFilter('all', this)">전체</button>
     <button class="filter-tab" data-filter="want" onclick="setMovieFilter('want', this)">보고 싶음</button>
@@ -528,6 +529,33 @@
   // 영화 데이터
   let movies = JSON.parse(localStorage.getItem('booklog_movies') || '[]');
   let currentMovieFilter = 'all';
+  let currentMovieYear = 'all';
+
+  function getMovieEffectiveDate(m) {
+    return m.watchDate && m.status === 'done' ? new Date(m.watchDate) : new Date(m.addedAt);
+  }
+
+  function getMovieYears() {
+    return [...new Set(movies.map(m => getMovieEffectiveDate(m).getFullYear()))].sort((a,b) => b - a);
+  }
+
+  function renderMovieYearTabs() {
+    const years = getMovieYears();
+    const container = document.getElementById('movieYearTabs');
+    if (!container) return;
+    let html = `<button class="year-tab ${currentMovieYear === 'all' ? 'active' : ''}" onclick="setMovieYear('all', this)">전체</button>`;
+    years.forEach(y => {
+      html += `<button class="year-tab ${currentMovieYear == y ? 'active' : ''}" onclick="setMovieYear(${y}, this)">${y}</button>`;
+    });
+    container.innerHTML = html;
+  }
+
+  function setMovieYear(y, el) {
+    currentMovieYear = y;
+    document.querySelectorAll('#movieYearTabs .year-tab').forEach(t => t.classList.remove('active'));
+    el.classList.add('active');
+    renderMovies();
+  }
   let currentBookSort = 'date';
   let currentMovieSort = 'date';
 
@@ -577,7 +605,13 @@
   }
 
   function renderMovies() {
-    const filtered = currentMovieFilter === 'all' ? movies : movies.filter(m => m.status === currentMovieFilter);
+    renderMovieYearTabs();
+    const ignoreYear = currentMovieFilter === 'want';
+    const yearFiltered = movies.filter(m => {
+      if (ignoreYear) return true;
+      return currentMovieYear === 'all' || getMovieEffectiveDate(m).getFullYear() == currentMovieYear;
+    });
+    const filtered = currentMovieFilter === 'all' ? yearFiltered : yearFiltered.filter(m => m.status === currentMovieFilter);
     document.getElementById('mStatWant').textContent = movies.filter(m=>m.status==='want').length;
     document.getElementById('mStatDone').textContent = movies.filter(m=>m.status==='done').length;
 
@@ -589,19 +623,41 @@
       return;
     }
     if (currentMovieFilter === 'done' && currentMovieSort === 'date') {
-      // 날짜순 → 월별 그룹
-      const byMonth = {};
-      filtered.forEach(m => {
-        const month = new Date(m.addedAt).getMonth();
-        if (!byMonth[month]) byMonth[month] = [];
-        byMonth[month].push(m);
-      });
-      let html = '';
-      Object.keys(byMonth).sort((a,b)=>b-a).forEach(month => {
-        const moviesInMonth = byMonth[month];
-        html += `<div class="month-section"><div class="month-header"><div class="month-label">${MONTHS[month]}</div><div class="month-count">${moviesInMonth.length}편</div></div><div class="book-list" style="padding:0 0 8px">${moviesInMonth.map((m,i) => movieCardHTML(m,i)).join('')}</div></div>`;
-      });
-      wrap.innerHTML = html;
+      // 날짜순 → 연도별 + 월별 그룹
+      if (currentMovieYear === 'all') {
+        const byYear = {};
+        filtered.forEach(m => {
+          const d = m.watchDate ? new Date(m.watchDate) : new Date(m.addedAt);
+          const y = d.getFullYear();
+          if (!byYear[y]) byYear[y] = {};
+          const month = d.getMonth();
+          if (!byYear[y][month]) byYear[y][month] = [];
+          byYear[y][month].push(m);
+        });
+        let html = '';
+        Object.keys(byYear).sort((a,b)=>b-a).forEach(year => {
+          html += `<div style="padding:12px 24px 0"><div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--ink-light);letter-spacing:1px;padding:8px 0 4px;border-bottom:2px solid var(--ink);margin-bottom:4px">${year}</div></div>`;
+          Object.keys(byYear[year]).sort((a,b)=>b-a).forEach(month => {
+            const moviesInMonth = byYear[year][month];
+            html += `<div class="month-section"><div class="month-header"><div class="month-label">${MONTHS[month]}</div><div class="month-count">${moviesInMonth.length}편</div></div><div class="book-list" style="padding:0 0 8px">${moviesInMonth.map((m,i) => movieCardHTML(m,i)).join('')}</div></div>`;
+          });
+        });
+        wrap.innerHTML = html;
+      } else {
+        const byMonth = {};
+        filtered.forEach(m => {
+          const d = m.watchDate ? new Date(m.watchDate) : new Date(m.addedAt);
+          const month = d.getMonth();
+          if (!byMonth[month]) byMonth[month] = [];
+          byMonth[month].push(m);
+        });
+        let html = '';
+        Object.keys(byMonth).sort((a,b)=>b-a).forEach(month => {
+          const moviesInMonth = byMonth[month];
+          html += `<div class="month-section"><div class="month-header"><div class="month-label">${MONTHS[month]}</div><div class="month-count">${moviesInMonth.length}편</div></div><div class="book-list" style="padding:0 0 8px">${moviesInMonth.map((m,i) => movieCardHTML(m,i)).join('')}</div></div>`;
+        });
+        wrap.innerHTML = html;
+      }
     } else if (currentMovieFilter === 'done') {
       // 별점순 / 제목순 → 그냥 리스트
       wrap.innerHTML = `<div class="book-list">${applySortMovies(filtered).map((m,i) => movieCardHTML(m,i)).join('')}</div>`;
@@ -647,6 +703,13 @@
     const btnWatch = document.getElementById('btnWatched');
     btnWatch.disabled = m.status === 'done';
     btnWatch.textContent = m.status === 'done' ? '✅ 봤음' : '✅ 봤어요';
+    const wds = document.getElementById('mDetailWatchDateSection');
+    if (m.watchDate) {
+      const wd = new Date(m.watchDate);
+      document.getElementById('mDetailWatchDate').textContent =
+        wd.getFullYear() + '년 ' + (wd.getMonth()+1) + '월 ' + wd.getDate() + '일';
+      wds.style.display = 'block';
+    } else { wds.style.display = 'none'; }
     const gs = document.getElementById('mDetailGenreSection');
     if (m.genre) { document.getElementById('mDetailGenre').textContent = m.genre; gs.style.display = 'block'; } else { gs.style.display = 'none'; }
     const rs = document.getElementById('mDetailRatingSection');
@@ -660,6 +723,7 @@
     const m = movies.find(m => m.id === movieViewingId);
     if (!m) return;
     m.status = 'done';
+    m.watchDate = m.watchDate || new Date().toISOString().slice(0,10);
     saveMovies(); openMovieDetail(movieViewingId); renderMovies();
   }
 
@@ -677,10 +741,17 @@
     currentMovieCoverUrl = null;
     document.getElementById('mSearchInput').value = '';
     document.getElementById('mSearchResults').style.display = 'none';
+    document.getElementById('mInputWatchDate').value = '';
+    document.getElementById('watchDateGroup').style.display = 'none';
     document.getElementById('movieAddOverlay').classList.add('active');
   }
 
   let currentMovieCoverUrl = null;
+
+  function onMovieStatusChange() {
+    const s = document.getElementById('mInputStatus').value;
+    document.getElementById('watchDateGroup').style.display = s === 'done' ? 'block' : 'none';
+  }
 
   function setMovieCover(url) {
     currentMovieCoverUrl = url;
@@ -711,6 +782,7 @@
       rating: movieRating,
       memo: document.getElementById('mInputMemo').value.trim(),
       coverUrl: currentMovieCoverUrl || null,
+      watchDate: document.getElementById('mInputWatchDate').value || null,
       addedAt: movieEditingId !== null ? (movies.find(m=>m.id===movieEditingId)||{}).addedAt : new Date().toISOString()
     };
     if (movieEditingId !== null) { movies = movies.map(m => m.id === movieEditingId ? movie : m); }
@@ -732,6 +804,8 @@
     if (m.coverUrl) { setMovieCover(m.coverUrl); } else { currentMovieCoverUrl = null; document.getElementById('mCoverPreview').innerHTML = '🎬'; }
     document.getElementById('mSearchInput').value = '';
     document.getElementById('mSearchResults').style.display = 'none';
+    document.getElementById('mInputWatchDate').value = '';
+    document.getElementById('watchDateGroup').style.display = 'none';
     document.getElementById('movieAddOverlay').classList.add('active');
   }
 
@@ -1207,10 +1281,14 @@
     </div>
     <div class="form-group">
       <label class="form-label">상태</label>
-      <select class="form-select" id="mInputStatus">
+      <select class="form-select" id="mInputStatus" onchange="onMovieStatusChange()">
         <option value="want">보고 싶음</option>
         <option value="done">봤음</option>
       </select>
+    </div>
+    <div class="form-group" id="watchDateGroup" style="display:none">
+      <label class="form-label">본 날짜</label>
+      <input class="form-input" id="mInputWatchDate" type="date">
     </div>
     <div class="form-group">
       <label class="form-label">장르</label>
@@ -1252,6 +1330,10 @@
     <div style="text-align:center;margin-bottom:8px"><span class="status-badge" id="mDetailStatus"></span></div>
     <div class="quick-actions">
       <button class="btn-quick btn-finish-reading" id="btnWatched" onclick="quickMovieWatch()">✅ 봤어요</button>
+    </div>
+    <div class="detail-section" id="mDetailWatchDateSection">
+      <div class="detail-section-label">본 날짜</div>
+      <div style="font-size:14px;color:var(--ink)" id="mDetailWatchDate"></div>
     </div>
     <div class="detail-section" id="mDetailGenreSection">
       <div class="detail-section-label">장르</div>
